@@ -1,0 +1,15 @@
+{
+  "CN": "fib.jaaco.cloud",
+  "hosts": ["fib.jaaco.cloud", "localhost"],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "UK",
+      "O": "jaaco.cloud",
+      "OU": "Jaaco Cloud Services"
+    }
+  ]
+}

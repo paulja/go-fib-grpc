@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "github.com/pauja/go-fib-grpc/fib";
+
+message NumberRequest {
+    int32 number = 1;
+}
+message NumberResponse {
+    int32 result = 1;
+}
+
+message SequenceRequest {
+    int32 number = 1;
+}
+message SequenceResponse {
+    repeated int32 result = 1;
+}
+
+service FibService {
+    rpc Number(NumberRequest) returns (NumberResponse);
+    rpc Sequence(SequenceRequest) returns (SequenceResponse);
+}
