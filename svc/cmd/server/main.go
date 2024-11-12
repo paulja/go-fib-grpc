@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/paulja/go-fib-grpc/proto/fib"
 	"google.golang.org/grpc"
@@ -13,10 +16,32 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var log slog.Logger
+
 func main() {
-	fmt.Printf("fib-service listening\n")
+	log = *slog.Default()
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+	shutdownHandler()
+
+	log.Info("fib-service listening", "port", 4000)
 	s := new(server)
-	log.Fatal(s.Run())
+	if err := s.Run(); err != nil {
+		log.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+func shutdownHandler() {
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	go func() {
+		s := <-exit
+		if s == syscall.SIGINT { // if killed from CTRL+C
+			fmt.Print("\b\b")
+		}
+		log.Info("graceful shutdown")
+		os.Exit(0)
+	}()
 }
 
 type server struct {
@@ -32,10 +57,9 @@ func logInterceptor(
 	interface{},
 	error,
 ) {
-	log.Println("Message: ", info.FullMethod, req)
+	log.DebugContext(ctx, "->", "method", info.FullMethod, "req", req)
 	res, err := hander(ctx, req)
-	log.Printf("--> %+v, %+v", res, err)
-
+	log.Debug("<-", "method", info.FullMethod, "res", res, "error", err)
 	return res, err
 }
 
