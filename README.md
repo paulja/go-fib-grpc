@@ -55,7 +55,7 @@ grpcurl \
     :4000 FibService/Number
 ```
 
-We have not enabled reflection in our service therefore we have to tell `grpcurl` what services and operations are available. The `-plaintext` flag is required because we have not configured TLS, the `-d` specifies the data in a JSON like format, the remainder specifies the host, port and API we wish to call.
+We have not enabled reflection in our service therefore we have to tell `grpcurl` what services and operations are available by giving it the `*.proto` file with `-proto` argument. The `-plaintext` flag is required because we have not configured TLS, the `-d` specifies the data in a JSON like format, the remainder specifies the host, port and API we wish to call.
 
 Using the other API we created is as simple.
 
@@ -83,20 +83,18 @@ make gencert
 
 That will use `cfssl` to create the certs for the service and move them in the right place.
 
-We choosing to run the service with TLS via a proxy, as that is the typical approach when you run the services in production, otherwise you have to write code to create a certificate pool and add then TLS configuration to your dial options. This not hard code to write, however, it means you will have to release code when you need to change certs unless you code things very carefully. But far the easiest approach is to create a reverse proxy for you service and upload and manager your certificates there.
-
-We will be using NGINX for the reverse proxy in this case.
+We choosing to run the service with TLS via a proxy (NGINX), as that is the typical approach when you run service in a production environment, otherwise you have to write code to create a certificate pool and add TLS configuration to your dial options. This not hard code to write, however, it means you will have to release code when you change certs unless you code things carefully. By far the easiest approach is to create a reverse proxy for your services and upload then manage your certificates there.
 
 ## Running in Docker
-We want to run the service in Docker with Docker Compose, now the certificates have been generated we are ready to run in docker.
+We want to run the service in Docker, by using Docker Compose. As the certificates have been generated we are ready build and run the service containers.
 
 ```shell
 docker compose up --build
 ```
 
-We only need the `--build` tag the first time we run as that will create the docker container for the service and then run it.
+We need the `--build` tag the first time we run the `up` command as we need to create the container for the service.
 
-After the service and reverse proxy come up, you can run then same `grpcurl` call but you can remove the `-plaintext` flag. However, because we are running a self signed certificate we have to ask `grpcurl` to not check the certs with a `-insecure` flag.
+After the service and reverse proxy come up, you can run the same `grpcurl` calls you ran earlier, except you can remove the `-plaintext` flag. However, because we are running a self signed certificate (the CA is not trusted) we have to ask `grpcurl` to not validate the CA cert with a `-insecure` flag.
 
 ```shell
 grpcurl \
@@ -107,13 +105,13 @@ grpcurl \
 ```
 
 ## Quality of Life Changes
-Specifying the proto file with each request is fine for production as you do not want to widen your attack surface, but during development it is convenient to enable gRPC reflection so  you can discover the API and arguments.
+Specifying the proto file with each request is fine for production as you do not want to widen your attack surface, but during development it is convenient to enable gRPC reflection that enables you to discover the API and arguments.
 
 ```shell
 grpcurl -insecure :4433 list FibService
 ```
 
-Returns for our service.
+Which returns the following for our service.
 
 ```shell
 FibService.Number
@@ -126,7 +124,7 @@ Or you can get more information than the `list` command provides by using the `d
 grpcurl -insecure :4433 describe FibService
 ```
 
-Which returns more information.
+That returns more information.
 
 ```shell
 grpcurl -insecure :4433 describe FibService
@@ -140,7 +138,7 @@ service FibService {
 
 ## Using the Custom CLI Client
 
-To show how to consume our service, there is client code in the project, which you can call from the `svc` folder.
+To show how to consume our service there is client code available in the project, which you can call from the `svc` folder.
 
 ```shell
 go run ./cmd/client/main.go -help
@@ -161,4 +159,3 @@ go run ./cmd/client/main.go -n 10
 
 ## Conclusion
 And there we have a Go gRPC Service using Docker Compose and TLS, we also have created a client CLI app to act a consumer of the service.
-
