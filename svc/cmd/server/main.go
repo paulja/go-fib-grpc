@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net"
 	"os"
-	"os/signal"
-	"syscall"
+	"time"
 
 	"github.com/paulja/go-fib-grpc/proto/fib"
 	"google.golang.org/grpc"
@@ -16,32 +14,22 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var log slog.Logger
+var (
+	log     slog.Logger
+	timeout time.Duration = 2 * time.Second
+	port                  = 4000
+)
 
 func main() {
 	log = *slog.Default()
 	slog.SetLogLoggerLevel(slog.LevelDebug)
-	shutdownHandler()
 
-	log.Info("fib-service listening", "port", 4000)
+	log.Info("fib-service listening", "port", port)
 	s := new(server)
 	if err := s.Run(); err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
-}
-
-func shutdownHandler() {
-	exit := make(chan os.Signal, 1)
-	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	go func() {
-		s := <-exit
-		if s == syscall.SIGINT { // if killed from CTRL+C
-			fmt.Print("\b\b")
-		}
-		log.Info("graceful shutdown")
-		os.Exit(0)
-	}()
 }
 
 type server struct {
@@ -86,9 +74,19 @@ func (s *server) Number(
 	if req.Number <= 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "number must be greater than 0")
 	}
-	return &fib.NumberResponse{
-		Result: fibonacci(req.Number),
-	}, nil
+
+	done := make(chan interface{})
+	defer close(done)
+
+	select {
+	case num := <-fibonacci(done, req.Number):
+		return &fib.NumberResponse{
+			Result: num,
+		}, nil
+	case <-time.Tick(timeout):
+		done <- true
+		return nil, status.Errorf(codes.DeadlineExceeded, "request timed out")
+	}
 }
 
 func (s *server) Sequence(
@@ -98,32 +96,40 @@ func (s *server) Sequence(
 	*fib.SequenceResponse,
 	error,
 ) {
-	if req.Number < 0 {
+	num := req.Number
+
+	if num < 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "number must be 0 or greater")
 	}
 
-	results := make([]int32, 0)
-	next := sequence()
-	for i := 0; i < int(req.Number); i++ {
-		results = append(results, next())
+	res := make([]int32, num)
+	x, y := 0, 1
+	for i := int32(0); i < num; i++ {
+		x, y = y, x+y
+		res = append(res, int32(x))
 	}
 
 	return &fib.SequenceResponse{
-		Result: results,
+		Result: res,
 	}, nil
 }
 
-func fibonacci(n int32) int32 {
-	if n <= 1 {
-		return n
-	}
-	return fibonacci(n-1) + fibonacci(n-2)
-}
+func fibonacci(done <-chan interface{}, n int32) <-chan int32 {
+	res := make(chan int32)
+	go func() {
+		defer close(res)
 
-func sequence() func() int32 {
-	x, y := 0, 1
-	return func() int32 {
-		x, y = y, x+y
-		return int32(x)
-	}
+		select {
+		case <-done:
+			return
+		default:
+		}
+
+		if n <= 2 {
+			res <- 1
+			return
+		}
+		res <- <-fibonacci(done, n-1) + <-fibonacci(done, n-2)
+	}()
+	return res
 }
