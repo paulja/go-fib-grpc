@@ -3,7 +3,7 @@ module github.com/paulja/go-fib-grpc/svc
 go 1.23.3
 
 require (
-	github.com/paulja/go-fib-grpc/proto v0.0.0-20241111172351-8a50dc2101d0
+	github.com/paulja/go-fib-grpc/proto v0.0.0-20241121185052-7fca3e664bfd
 	google.golang.org/grpc v1.68.0
 )
 
